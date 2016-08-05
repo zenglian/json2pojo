@@ -7,6 +7,7 @@ import org.fife.ui.rsyntaxtextarea.Theme;
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import java.awt.*;
 import java.awt.event.KeyEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
@@ -22,14 +23,16 @@ public class JsonEntryDialog extends JDialog {
     /**
      * A listener to be invoked when the user has clicked the OK button.
      */
-    public interface OnOkListener {
+    interface OnOkListener {
         /**
          * A callback to be invoked when the user has clicked the OK button.
          *
          * @param className the class name entered into the dialog.
          * @param jsonText the JSON text entered into the dialog.
+         * @param generateBuilders true if the generated classes should omit setters and generate builders.
+         * @param useMPrefix true if the generated fields should have an 'm' prefix.
          */
-        void onOk(String className, String jsonText);
+        void onOk(String className, String jsonText, boolean generateBuilders, boolean useMPrefix);
     }
 
     //endregion
@@ -43,7 +46,7 @@ public class JsonEntryDialog extends JDialog {
     //region MEMBER FIELDS ---------------------------------------------------------------------------------------------
 
     // Data / State
-    OnOkListener mListener;
+    private OnOkListener mListener;
 
     // UI
     private JButton mButtonCancel;
@@ -51,18 +54,26 @@ public class JsonEntryDialog extends JDialog {
     private JTextField mClassName;
     private JPanel mContentPane;
     private RSyntaxTextArea mJsonText;
+    private JCheckBox mUseMPrefix;
+    private JCheckBox mGenerateBuilders;
 
     //endregion
 
     //region CONSTRUCTOR -----------------------------------------------------------------------------------------------
 
-    public JsonEntryDialog(OnOkListener listener) {
+    JsonEntryDialog(OnOkListener listener) {
+        // Set the listener
         mListener = listener;
 
+        // Set up the main content
         setContentPane(mContentPane);
         setModal(true);
         getRootPane().setDefaultButton(mButtonOK);
 
+        // Set the minimum dialog size
+        setMinimumSize(new Dimension(420, 200));
+
+        // Add button listeners
         mButtonOK.addActionListener(e -> onOK());
         mButtonCancel.addActionListener(e -> onCancel());
 
@@ -101,12 +112,16 @@ public class JsonEntryDialog extends JDialog {
 
     //region PRIVATE METHODS -------------------------------------------------------------------------------------------
 
-    private void onOK() {
-        mListener.onOk(mClassName.getText(), mJsonText.getText());
+    private void onCancel() {
         dispose();
     }
 
-    private void onCancel() {
+    private void onOK() {
+        mListener.onOk(
+                mClassName.getText(),
+                mJsonText.getText(),
+                mGenerateBuilders.isSelected(),
+                mUseMPrefix.isSelected());
         dispose();
     }
 
