@@ -1,90 +1,74 @@
-package net.hexar.json2pojo;
+package liwey.json2pojo;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.gson.annotations.Expose;
-import com.google.gson.annotations.SerializedName;
-import com.intellij.openapi.progress.ProgressIndicator;
-import com.intellij.openapi.vfs.VirtualFile;
-import com.sun.codemodel.*;
-import org.apache.commons.lang.StringUtils;
-import org.jboss.dna.common.text.Inflector;
+import java.io.File;
+import java.util.*;
 
 import javax.annotation.Generated;
 import javax.swing.*;
-import java.io.File;
-import java.util.*;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.gson.annotations.SerializedName;
+import com.intellij.openapi.progress.ProgressIndicator;
+import com.sun.codemodel.*;
+
+import org.apache.commons.lang.StringUtils;
+import org.jboss.dna.common.text.Inflector;
+
+import lombok.*;
+import lombok.experimental.Accessors;
+
 
 /**
  * Contains the code to generate Java POJO classes from a given JSON text.
  */
-class GeneratePojos {
+class Generator {
+    private static final ObjectMapper mapper = new ObjectMapper();
 
-    //region CONSTANTS -------------------------------------------------------------------------------------------------
+    private final File destRoot;
+    private final String packageName;
+    private final ProgressIndicator progressBar;
 
-    private static final boolean ALWAYS_ANNOTATE_EXPOSE = false;
+    private Map<String, JDefinedClass> definedClasses = new HashMap<>();
+    private JType deferredClass;
+    private JType deferredList;
+    private FieldComparator fieldComparator;
+    private Map<JDefinedClass, Set<FieldInfo>> fieldMap = new HashMap<>();
+    private static Config config = new Config();
 
-    //endregion
-
-    //region ACTION CONTEXT --------------------------------------------------------------------------------------------
-
-    private final VirtualFile mModuleSourceRoot;
-    private final String mPackageName;
-    private final ProgressIndicator mProgressBar;
-
-    //endregion
-
-    //region CLASS MAP -------------------------------------------------------------------------------------------------
-
-    private Map<String, JDefinedClass> mClassMap = new HashMap<>();
-    private JType mDeferredClass;
-    private JType mDeferredList;
-    private FieldComparator mFieldComparator;
-    private Map<JDefinedClass, Set<FieldInfo>> mFieldMap = new HashMap<>();
-
-    //endregion
-
-    //region CONSTRUCTOR -----------------------------------------------------------------------------------------------
-
-    GeneratePojos(String packageName, VirtualFile moduleSourceRoot, ProgressIndicator progressBar) {
-        mModuleSourceRoot = moduleSourceRoot;
-        mPackageName = packageName;
-        mProgressBar = progressBar;
+    Generator(String packageName, File moduleSourceRoot, ProgressIndicator progressBar) {
+        destRoot = moduleSourceRoot;
+        this.packageName = packageName;
+        this.progressBar = progressBar;
     }
-
-    //endregion
-
-    //region CODE GENERATION -------------------------------------------------------------------------------------------
 
     /**
      * Generates POJOs from a source JSON text.
      *
-     * @param rootName         the name of the root class to generate.
-     * @param json             the source JSON text.
-     * @param generateBuilders true if the generated class should omit setters and generate a builder instead.
-     * @param useMPrefix       true if the generated fields should use an 'm' prefix.
+     * @param rootName the name of the root class to generate.
+     * @param json     the source JSON text.
      */
-    void generateFromJson(String rootName, String json, boolean generateBuilders, boolean useMPrefix) {
-        mFieldComparator = new FieldComparator(useMPrefix);
+    void generateFromJson(String rootName, String json) {
+        fieldComparator = new FieldComparator();
 
         try {
             // Create code model and package
             JCodeModel jCodeModel = new JCodeModel();
-            JPackage jPackage = jCodeModel._package(mPackageName);
+            JPackage jPackage = jCodeModel._package(packageName);
 
             // Create deferrable types
-            mDeferredClass = jCodeModel.ref(Deferred.class);
-            mDeferredList = jCodeModel.ref(List.class).narrow(Deferred.class);
+            deferredClass = jCodeModel.ref(Deferred.class);
+            deferredList = jCodeModel.ref(List.class).narrow(Deferred.class);
 
             // Parse the JSON data
-            ObjectMapper mapper = new ObjectMapper();
             JsonNode rootNode = mapper.readTree(json);
 
             // Recursively generate
-            generate(rootNode, formatClassName(rootName), jPackage, generateBuilders, useMPrefix);
+            generate(rootNode, formatClassName(rootName), jPackage);
 
             // Build
-            jCodeModel.build(new File(mModuleSourceRoot.getPath()));
+            jCodeModel.build(destRoot);
         } catch (Exception e) {
             JOptionPane.showMessageDialog(null, e.toString(), "Codegen Failed", JOptionPane.ERROR_MESSAGE);
             e.printStackTrace();
@@ -94,32 +78,26 @@ class GeneratePojos {
     /**
      * Generates all of the sub-objects and fields for a given class.
      *
-     * @param rootNode         the JSON class node in the JSON syntax tree.
-     * @param rootName         the name of the root class to generate.
-     * @param jPackage         the code model package to generate the class in.
-     * @param generateBuilders true if the generated class should omit setters and generate a builder instead.
-     * @param useMPrefix       true if the generated fields should use an 'm' prefix.
+     * @param rootNode the JSON class node in the JSON syntax tree.
+     * @param rootName the name of the root class to generate.
+     * @param jPackage the code model package to generate the class in.
      * @throws Exception if an error occurs.
      */
-    private void generate(JsonNode rootNode, String rootName, JPackage jPackage, boolean generateBuilders,
-                          boolean useMPrefix) throws Exception {
+    private void generate(JsonNode rootNode, String rootName, JPackage jPackage) throws Exception {
+        config = ConfigUtil.load();
+
         // First create all referenced sub-types and collect field data
         parseObject(rootNode, rootName, jPackage);
 
         // Now create the actual fields
         int i = 1;
-        for (JDefinedClass clazz : mClassMap.values()) {
+        for (JDefinedClass clazz : definedClasses.values()) {
             // Generate the fields
-            List<GeneratedField> fields = generateFields(clazz, mFieldMap.get(clazz), jPackage.owner(),
-                    generateBuilders, useMPrefix);
-
-            // Optionally generate the inner builder class
-            if (generateBuilders) {
-                generateBuilder(clazz, fields);
-            }
+            List<GeneratedField> fields = generateFields(clazz, fieldMap.get(clazz), jPackage.owner());
 
             // Update progress
-            mProgressBar.setFraction((double) i / (double) mClassMap.size());
+            if (progressBar != null)
+                progressBar.setFraction((double) i / (double) definedClasses.size());
             i++;
         }
     }
@@ -135,13 +113,13 @@ class GeneratePojos {
     private void parseObject(JsonNode classNode, String className, JPackage jPackage) throws Exception {
         // Find the class if it exists, or create it if it doesn't
         JDefinedClass clazz;
-        if (mClassMap.containsKey(className)) {
-            clazz = mClassMap.get(className);
+        if (definedClasses.containsKey(className)) {
+            clazz = definedClasses.get(className);
         } else {
             clazz = jPackage._class(className);
             annotateClass(clazz);
-            mClassMap.put(className, clazz);
-            mFieldMap.put(clazz, new TreeSet<>(mFieldComparator));
+            definedClasses.put(className, clazz);
+            fieldMap.put(clazz, new TreeSet<>(fieldComparator));
         }
 
         // Iterate over all of the fields in this object
@@ -164,7 +142,7 @@ class GeneratePojos {
             // Now attempt to create the field and add it to the field set
             FieldInfo field = getFieldInfoFromNode(childNode, childProperty, jPackage.owner());
             if (field != null) {
-                mFieldMap.get(clazz).add(field);
+                fieldMap.get(clazz).add(field);
             }
         }
     }
@@ -214,7 +192,7 @@ class GeneratePojos {
                 JsonNode firstNode = node.elements().next();
                 if (firstNode.isObject()) {
                     // Get the already-created class from the class map
-                    JDefinedClass newClass = mClassMap.get(newClassName);
+                    JDefinedClass newClass = definedClasses.get(newClassName);
 
                     // Now return the field referring to a list of the new class
                     return new FieldInfo(jCodeModel.ref(List.class).narrow(newClass), propertyName);
@@ -223,7 +201,7 @@ class GeneratePojos {
                     FieldInfo fi = getFieldInfoFromNode(firstNode, propertyName, jCodeModel);
 
                     // Make a List<> of the recursed type
-                    return new FieldInfo(jCodeModel.ref(List.class).narrow(fi.Type), propertyName);
+                    return new FieldInfo(jCodeModel.ref(List.class).narrow(fi.type), propertyName);
                 } else if (firstNode.isFloatingPointNumber()) {
                     // Now return the field referring to a list of doubles
                     return new FieldInfo(jCodeModel.ref(List.class).narrow(Double.class), propertyName);
@@ -232,14 +210,14 @@ class GeneratePojos {
                     return new FieldInfo(jCodeModel.ref(List.class).narrow(Long.class), propertyName);
                 } else if (firstNode.isNull()) {
                     // Null values? Return List<Deferred>.
-                    return new FieldInfo(mDeferredList, propertyName);
+                    return new FieldInfo(deferredList, propertyName);
                 } else if (firstNode.isTextual()) {
                     // Now return the field referring to a list of strings
                     return new FieldInfo(jCodeModel.ref(List.class).narrow(String.class), propertyName);
                 }
             } else {
                 // No elements? Return List<Deferred>.
-                return new FieldInfo(mDeferredList, propertyName);
+                return new FieldInfo(deferredList, propertyName);
             }
         } else if (node.isBoolean()) {
             return new FieldInfo(jCodeModel.ref(Boolean.class), propertyName);
@@ -249,11 +227,11 @@ class GeneratePojos {
             return new FieldInfo(jCodeModel.ref(Long.class), propertyName);
         } else if (node.isNull()) {
             // Defer the type reference until later
-            return new FieldInfo(mDeferredClass, propertyName);
+            return new FieldInfo(deferredClass, propertyName);
         } else if (node.isObject()) {
             // Get the already-created class from the class map
             String newClassName = formatClassName(propertyName);
-            JDefinedClass newClass = mClassMap.get(newClassName);
+            JDefinedClass newClass = definedClasses.get(newClassName);
 
             // Now return the field as a defined class
             return new FieldInfo(newClass, propertyName);
@@ -268,29 +246,26 @@ class GeneratePojos {
     /**
      * Generates all of the fields for a given class.
      *
-     * @param clazz            the class to generate sub-objects and fields for.
-     * @param fields           the set of fields to generate.
-     * @param jCodeModel       the code model.
-     * @param generateBuilders true if the generated class should omit setters and generate a builder instead.
-     * @param useMPrefix       true if the generated fields should use an 'm' prefix.
+     * @param clazz      the class to generate sub-objects and fields for.
+     * @param fields     the set of fields to generate.
+     * @param jCodeModel the code model.
      * @return a list of generated fields.
      * @throws Exception if an error occurs.
      */
-    private List<GeneratedField> generateFields(JDefinedClass clazz, Set<FieldInfo> fields, JCodeModel jCodeModel,
-                                                boolean generateBuilders, boolean useMPrefix) throws Exception {
+    private List<GeneratedField> generateFields(JDefinedClass clazz, Set<FieldInfo> fields, JCodeModel jCodeModel) throws Exception {
         List<GeneratedField> generatedFields = new ArrayList<>();
 
         // Get sorted list of field names
         for (FieldInfo fieldInfo : fields) {
             // Create field with correct naming scheme
-            String fieldName = formatFieldName(fieldInfo.PropertyName, useMPrefix);
+            String fieldName = formatFieldName(fieldInfo.propertyName);
 
             // Resolve deferred types
             JFieldVar newField;
-            if (fieldInfo.Type.equals(mDeferredClass)) {
+            if (fieldInfo.type.equals(deferredClass)) {
                 // Attempt to get the class from the class map
-                String newClassName = formatClassName(fieldInfo.PropertyName);
-                JDefinedClass newClass = mClassMap.get(newClassName);
+                String newClassName = formatClassName(fieldInfo.propertyName);
+                JDefinedClass newClass = definedClasses.get(newClassName);
 
                 // Now return the field for the actual class type
                 if (newClass != null) {
@@ -299,10 +274,10 @@ class GeneratePojos {
                     // Otherwise, just make a field of type Object
                     newField = clazz.field(JMod.PRIVATE, jCodeModel.ref(Object.class), fieldName);
                 }
-            } else if (fieldInfo.Type.equals(mDeferredList)) {
+            } else if (fieldInfo.type.equals(deferredList)) {
                 // Attempt to get the class from the class map
-                String newClassName = formatClassName(Inflector.getInstance().singularize(fieldInfo.PropertyName));
-                JDefinedClass newClass = mClassMap.get(newClassName);
+                String newClassName = formatClassName(Inflector.getInstance().singularize(fieldInfo.propertyName));
+                JDefinedClass newClass = definedClasses.get(newClassName);
 
                 // Now return the field referring to a list of the new class
                 if (newClass != null) {
@@ -313,23 +288,22 @@ class GeneratePojos {
                 }
             } else {
                 // The type should already be defined so just use it
-                newField = clazz.field(JMod.PRIVATE, fieldInfo.Type, fieldName);
+                newField = clazz.field(JMod.PRIVATE, fieldInfo.type, fieldName);
             }
 
             if (newField != null) {
                 // Annotate field
-                annotateField(newField, fieldInfo.PropertyName);
+                annotateField(newField, fieldInfo.propertyName);
 
-                // Create getter
-                createGetter(clazz, newField, fieldInfo.PropertyName);
-
-                // Create setter method only if we're not generating a builder class
-                if (!generateBuilders) {
-                    createSetter(clazz, newField, fieldInfo.PropertyName);
+                // Create getter/setter if lombok is disabled.
+                Config config = ConfigUtil.load();
+                if (!config.useLombok()) {
+                    createGetter(clazz, newField, fieldInfo.propertyName);
+                    createSetter(clazz, newField, fieldInfo.propertyName);
                 }
 
                 // Add field to return list
-                generatedFields.add(new GeneratedField(newField, fieldInfo.PropertyName));
+                generatedFields.add(new GeneratedField(newField, fieldInfo.propertyName));
             }
         }
 
@@ -337,45 +311,40 @@ class GeneratePojos {
     }
 
     /**
-     * Generates the inner builder class for the containing class, with methods for the given fields.
-     *
-     * @param clazz  the class to generate a builder class in.
-     * @param fields the list of generated fields to build.
-     * @throws Exception if an error occurs.
-     */
-    private void generateBuilder(JDefinedClass clazz, List<GeneratedField> fields) throws Exception {
-        // Create the builder first
-        JDefinedClass builder = clazz._class(JMod.PUBLIC | JMod.STATIC, "Builder");
-
-        // Get sorted list of field names
-        for (GeneratedField generatedField : fields) {
-            // Create the new field
-            builder.field(JMod.PRIVATE, generatedField.Field.type(), generatedField.Field.name());
-
-            // Create the builder setter method
-            createBuilderSetter(builder, generatedField.Field, generatedField.PropertyName);
-        }
-
-        // Create the build method
-        createBuildMethod(clazz, builder, fields);
-    }
-
-    //endregion
-
-    //region HELPER METHODS --------------------------------------------------------------------------------------------
-
-    /**
      * Adds the {@link Generated} annotation to the class.
      *
      * @param clazz the class to annotate.
      */
-    private static void annotateClass(JDefinedClass clazz) {
-        clazz.annotate(Generated.class).param("value", "net.hexar.json2pojo");
+    private static void annotateClass(final JDefinedClass clazz) throws ClassNotFoundException {
+        if (config.lombokNoArgsConstructor()) {
+            clazz.annotate(NoArgsConstructor.class);
+        }
+
+        if (config.lombokRequiredArgsConstructor()) {
+            clazz.annotate(RequiredArgsConstructor.class);
+        }
+
+        if (config.lombokAllArgsConstructor()) {
+            clazz.annotate(AllArgsConstructor.class);
+        }
+
+        if (config.lombokData()) {
+            clazz.annotate(Data.class);
+        }
+
+        if (config.lombokAccessors()) {
+            clazz.annotate(Accessors.class).param("fluent", config.lombokAccessorsFluent());
+        }
+
+        if (config.lombokBuilder()) {
+            clazz.annotate(Builder.class);
+        }
+
         clazz.annotate(SuppressWarnings.class).param("value", "unused");
     }
 
     /**
-     * Adds the {@link Expose} annotation and potentially the {@link SerializedName} annotation to a given
+     * Adds potentially the {@link SerializedName} annotation to a given
      * field - the latter is applied only if the property name differs from the field name.
      *
      * @param field        the field to annotate.
@@ -384,74 +353,11 @@ class GeneratePojos {
     private static void annotateField(JFieldVar field, String propertyName) {
         // Use the SerializedName annotation if the field name doesn't match the property name
         if (!field.name().equals(propertyName)) {
-            field.annotate(SerializedName.class).param("value", propertyName);
-
-            // If we always add @Expose, then add this too
-            if (ALWAYS_ANNOTATE_EXPOSE) {
-                field.annotate(Expose.class);
-            }
-        } else {
-            // Otherwise, just add @Expose
-            field.annotate(Expose.class);
+            if (config.namePolicy() == Config.NamePolicy.GSON)
+                field.annotate(SerializedName.class).param("value", propertyName);
+            else if (config.namePolicy() == Config.NamePolicy.JACKSON)
+                field.annotate(JsonProperty.class).param("value", propertyName);
         }
-    }
-
-    /**
-     * Generates a builder method for the given class, field, and property name.
-     *
-     * @param builder      the class to generate a builder method in.
-     * @param field        the field to set.
-     * @param propertyName the name of the property.
-     * @return a {@link JMethod} which is a builder method for the given field.
-     */
-    private static JMethod createBuilderSetter(JDefinedClass builder, JFieldVar field, String propertyName) {
-        // Method name should start with "set" and then the uppercased class name
-        JMethod withMethod = builder.method(JMod.PUBLIC, builder, "with" + formatClassName(propertyName));
-
-        // Set parameter name to lower camel case
-        String paramName = sanitizePropertyName(propertyName);
-        JVar param = withMethod.param(field.type(), paramName);
-
-        // Assign to field name
-        JBlock body = withMethod.body();
-        if (field.name().equals(paramName)) {
-            // Assign this.FieldName = paramName
-            body.assign(JExpr._this().ref(field), param);
-        } else {
-            // Safe to just assign FieldName = paramName
-            body.assign(field, param);
-        }
-        body._return(JExpr._this());
-        return withMethod;
-    }
-
-    /**
-     * Creates the build method for the builder.
-     *
-     * @param owner   the containing class to build.
-     * @param builder the builder to generate the build method for.
-     * @param fields  the list of generated fields that the containing class owns.
-     */
-    private JMethod createBuildMethod(JDefinedClass owner, JDefinedClass builder, List<GeneratedField> fields) {
-        // Method name should start with "set" and then the uppercased class name
-        JMethod buildMethod = builder.method(JMod.PUBLIC, owner, "build");
-
-        // Assign to field name
-        JBlock body = buildMethod.body();
-
-        // Declare new instance of owner class
-        String localName = sanitizePropertyName(owner.name());
-        JVar local = body.decl(owner, localName, JExpr._new(owner));
-
-        // Get sorted list of field names
-        for (GeneratedField field : fields) {
-            // Assign the field in the owner class
-            body.assign(local.ref(field.Field.name()), JExpr.ref(field.Field.name()));
-        }
-
-        // Return the new instance
-        body._return(local);
-        return buildMethod;
     }
 
     /**
@@ -462,8 +368,8 @@ class GeneratePojos {
      * @param propertyName the name of the property.
      * @return a {@link JMethod} which is a getter for the given field.
      */
-    private static JMethod createGetter(JDefinedClass clazz, JFieldVar field, String propertyName) {
-        // Method name should start with "get" and then the uppercased class name
+    private static JMethod createGetter(final JDefinedClass clazz, final JFieldVar field, final String propertyName) {
+        // Method name should start with "get" and then the uppercased class name.
         JMethod getter = clazz.method(JMod.PUBLIC, field.type(), "get" + formatClassName(propertyName));
 
         // Return the field
@@ -514,16 +420,10 @@ class GeneratePojos {
      * Formats the given property name into a more standard field name.
      *
      * @param propertyName the original property name.
-     * @param useMPrefix   true if the field name should be prefixed with an 'm'.
      * @return the formatted field name.
      */
-    static String formatFieldName(String propertyName, boolean useMPrefix) {
-        String fieldName = sanitizePropertyName(propertyName);
-
-        if (useMPrefix) {
-            fieldName = "m" + StringUtils.capitalize(fieldName);
-        }
-        return fieldName;
+    static String formatFieldName(String propertyName) {
+        return sanitizePropertyName(propertyName);
     }
 
     /**
@@ -567,10 +467,6 @@ class GeneratePojos {
         return formattedName.toString();
     }
 
-    //endregion
-
-    //region INNER CLASSES ---------------------------------------------------------------------------------------------
-
     /**
      * A class type that indicates that we don't yet know the type of data this field represents.
      */
@@ -582,18 +478,11 @@ class GeneratePojos {
      * A comparator that sorts field data objects by field name, case insensitive.
      */
     private static class FieldComparator implements Comparator<FieldInfo> {
-
-        private final boolean mUseMPrefix;
-
-        public FieldComparator(boolean useMPrefix) {
-            mUseMPrefix = useMPrefix;
-        }
-
         @Override
         public int compare(FieldInfo left, FieldInfo right) {
             // Sort by formatted field name, not the property names
-            return formatFieldName(left.PropertyName, mUseMPrefix)
-                    .compareTo(formatFieldName(right.PropertyName, mUseMPrefix));
+            return formatFieldName(left.propertyName)
+                    .compareTo(formatFieldName(right.propertyName));
         }
     }
 
@@ -601,12 +490,12 @@ class GeneratePojos {
      * A simple representation of a field to be created.
      */
     private static class FieldInfo {
-        final JType Type;
-        final String PropertyName;
+        final JType type;
+        final String propertyName;
 
         FieldInfo(JType type, String propertyName) {
-            Type = type;
-            PropertyName = propertyName;
+            this.type = type;
+            this.propertyName = propertyName;
         }
     }
 
@@ -614,15 +503,12 @@ class GeneratePojos {
      * A pair containing a generated {@link JFieldVar} field and its original property name.
      */
     private static class GeneratedField {
-        final JFieldVar Field;
-        final String PropertyName;
+        final JFieldVar field;
+        final String propertyName;
 
         GeneratedField(JFieldVar field, String propertyName) {
-            Field = field;
-            PropertyName = propertyName;
+            this.field = field;
+            this.propertyName = propertyName;
         }
     }
-
-    //endregion
-
 }

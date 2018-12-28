@@ -38,7 +38,7 @@ import java.util.regex.Pattern;
  * href="http://wiki.rubyonrails.org/rails/pages/License">Rails license</a>.
  */
 @ThreadSafe
-public class Inflector {
+public class Inflector implements Cloneable{
 
     protected static final Inflector INSTANCE = new Inflector();
 

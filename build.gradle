@@ -1,0 +1,22 @@
+plugins {
+    id 'org.jetbrains.intellij' version '0.4.1'
+    id 'java'
+    id 'idea'
+}
+
+group 'net.hexar'
+version '1.2'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile "com.fifesoft:rsyntaxtextarea:2.6.1"
+    compile "com.sun.codemodel:codemodel:2.6"
+    compile "org.projectlombok:lombok:1.18.4"
+}
+
+intellij {
+    version '2018.3.1'
+}
