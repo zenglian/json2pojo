@@ -464,6 +464,9 @@ class Generator {
             }
         }
 
+        if(formattedName.length() == 0)
+            throw new IllegalArgumentException("Illegal property name: \"" + propertyName + "\".");
+
         return formattedName.toString();
     }
 
