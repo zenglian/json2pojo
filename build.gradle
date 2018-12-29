@@ -4,8 +4,8 @@ plugins {
     id 'idea'
 }
 
-group 'net.hexar'
-version '1.2'
+group 'liwey'
+version '1.0'
 
 repositories {
     mavenCentral()
