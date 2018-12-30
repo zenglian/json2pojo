@@ -7,15 +7,11 @@ import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 
-import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
-import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
-
 /**
  * A custom dialog which allows the user to input a JSON text.
  */
 public class JsonInputDialog extends JDialog {
     private void createUIComponents() {
-        // TODO: place custom component creation code here
     }
 
     /**
@@ -41,8 +37,8 @@ public class JsonInputDialog extends JDialog {
     private JButton buttonOK;
     private JTextField txtClassName;
     private JPanel contentPanel;
-    private RSyntaxTextArea jsonTextArea;
     private JButton buttonSettings;
+    private JTextArea jsonTextArea;
 
     JsonInputDialog(OnOkListener listener) {
         // Set the listener
@@ -78,9 +74,6 @@ public class JsonInputDialog extends JDialog {
         txtClassName.getDocument().addDocumentListener(new TextChangedListener());
         jsonTextArea.getDocument().addDocumentListener(new TextChangedListener());
 
-        // Set up syntax highlighting
-        jsonTextArea.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_JSON);
-        jsonTextArea.setCodeFoldingEnabled(false);
         buttonSettings.addActionListener(e -> {
             SettingsDialog dialog = new SettingsDialog();
             dialog.setTitle("Json2Pojo Settings");

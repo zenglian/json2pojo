@@ -12,11 +12,16 @@ repositories {
 }
 
 dependencies {
-    compile "com.fifesoft:rsyntaxtextarea:2.6.1"
+    compile "com.google.code.gson:gson:2.8.5"
     compile "com.sun.codemodel:codemodel:2.6"
-    compile "org.projectlombok:lombok:1.18.4"
+    compileOnly "org.projectlombok:lombok:1.18.4"
 }
 
 intellij {
-    version '2018.3.1'
+    version '2018.3'
+}
+
+patchPluginXml {
+    sinceBuild '162.00'
+    untilBuild '201.00'
 }

@@ -1,33 +1,34 @@
 package liwey.json2pojo;
 
 import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
+
+import javax.tools.*;
 
 import org.junit.Assert;
 
 import junit.framework.TestCase;
 
 public class GeneratorTest extends TestCase {
-    private static File out = null;
+    private static File srcFolder = null;
+    private static File classesFolder = null;
 
-    public void setUp(){
-        if(out == null) {
-            out = new File("d:/tmp/src/main/java");
-            if (!out.exists())
-                out.mkdirs();
-
-            for (File folder : Objects.requireNonNull(out.listFiles())) {
-                if(folder.isDirectory()) {
-                    for (File file : Objects.requireNonNull(folder.listFiles())) {
-                        file.delete();
-                    }
-                }
-            }
+    public void setUp() {
+        if (srcFolder == null) {
+            srcFolder = new File(System.getProperty("user.dir") + "/out");
+            if (!srcFolder.exists())
+                srcFolder.mkdirs();
         }
-    }
 
-    private int getFileCount(String packageName){
-        return Objects.requireNonNull(new File(out.getPath() + "/" + packageName).listFiles()).length;
+        if (classesFolder == null) {
+            classesFolder = new File(System.getProperty("user.dir") + "/build/classes/java/main");
+            if (!classesFolder.exists())
+                classesFolder.mkdirs();
+        }
     }
 
     public void testFormatClassName() {
@@ -42,20 +43,9 @@ public class GeneratorTest extends TestCase {
         assertEquals("InvalidChars", Generator.formatClassName("Invalid@$%@#$^&#%@Chars"));
     }
 
-    public void testFormatFieldNameWithoutMPrefix() {
-        assertEquals("test", Generator.formatFieldName("test"));
-        assertEquals("test2", Generator.formatFieldName("test2"));
-        assertEquals("testWithUnderscores", Generator.formatFieldName("test_with_underscores"));
-        assertEquals("testWithHyphens", Generator.formatFieldName("test-with-hyphens"));
-        assertEquals("abstract", Generator.formatFieldName("abstract"));
-        assertEquals("piñata", Generator.formatFieldName("piñata"));
-        assertEquals("test", Generator.formatFieldName("1Test"));
-        assertEquals("invalidChars", Generator.formatFieldName("Invalid@$%@#$^&#%@Chars"));
-    }
-
-    public void testGenerateConfig() {
+    public void testGenerateConfig() throws IOException, ClassNotFoundException {
         String packageName = "package1";
-        Generator generator = new Generator(packageName, out, null);
+        Generator generator = new Generator(packageName, srcFolder, null);
         String json = "{\n" +
                 "  \"lombok\": true,\n" +
                 "  \"lombok.annotations\": [\n" +
@@ -71,13 +61,15 @@ public class GeneratorTest extends TestCase {
                 "    }\n" +
                 "  ]\n" +
                 "}";
-        generator.generateFromJson("test", json);
-        Assert.assertEquals(3, getFileCount(packageName));
+        generator.generateFromJson("Test", json);
+        compile(packageName);
+        Class test = Class.forName(packageName + ".Test");
+        Assert.assertEquals(2, test.getDeclaredFields().length);
     }
 
-    public void testGenerateProgress() {
+    public void testNestedClass() throws IOException, ClassNotFoundException {
         String packageName = "package2";
-        Generator generator = new Generator(packageName, out, null);
+        Generator generator = new Generator(packageName, srcFolder, null);
         String json = "{\n" +
                 "  \"id\" : \"18092f4d-c54a-42c6-98e0-438aeef9f1fa\",\n" +
                 "  \"runId\" : \"16a3734b-0418-4231-ae5f-c06ee8638f97\",\n" +
@@ -120,19 +112,40 @@ public class GeneratorTest extends TestCase {
                 "    \"description\" : \"ForeachSink\"\n" +
                 "  }\n" +
                 "}";
-        generator.generateFromJson("test", json);
-        Assert.assertEquals(8, getFileCount(packageName));
+        generator.generateFromJson("Test", json);
+        compile(packageName);
+        Class test = Class.forName(packageName + ".Test");
+        Assert.assertEquals(12, test.getDeclaredFields().length);
     }
 
-    public void testGenerateVersion() {
+    public void testGenerateNameAnnotation() throws IOException, ClassNotFoundException {
         String packageName = "package3";
-        Generator generator = new Generator(packageName, out, null);
+        Generator generator = new Generator(packageName, srcFolder, null);
         String json = "{\n" +
                 "\t  \"javaHome\": \"c:\\\\java18\",\n" +
                 "\t  \"java.version\": \"1.8\",\n" +
                 "\t  \"scala.version\": \"2.11.8\"\n" +
                 "\t}";
-        generator.generateFromJson("version", json);
-        Assert.assertEquals(1, getFileCount(packageName));
+        generator.generateFromJson("Test", json);
+        compile(packageName);
+        Class test = Class.forName(packageName + ".Test");
+        Assert.assertEquals(3, test.getDeclaredFields().length);
+    }
+
+    private void compile(String packageName) throws IOException {
+        List<String> classes = new ArrayList<>();
+        for (File file : Objects.requireNonNull(new File(srcFolder.getPath() + "/" + packageName).listFiles())) {
+            classes.add(file.getAbsolutePath());
+        }
+        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+        DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<JavaFileObject>();
+        StandardJavaFileManager fileManager = compiler.getStandardFileManager(diagnostics, null, null);
+        JavaFileManager.Location oLocation = StandardLocation.CLASS_OUTPUT;
+        fileManager.setLocation(oLocation, Arrays.asList(classesFolder));
+        Iterable<? extends JavaFileObject> compilationUnits = fileManager.getJavaFileObjectsFromStrings(classes);
+        JavaCompiler.CompilationTask task = compiler.getTask(null, fileManager, diagnostics, null, null, compilationUnits);
+        if (!task.call())
+            throw new RuntimeException("Failed to compile generated classes: " + String.join(",", classes));
+        fileManager.close();
     }
 }

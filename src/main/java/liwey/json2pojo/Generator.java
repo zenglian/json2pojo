@@ -7,8 +7,8 @@ import javax.annotation.Generated;
 import javax.swing.*;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.gson.*;
+import com.google.gson.JsonElement;
 import com.google.gson.annotations.SerializedName;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.sun.codemodel.*;
@@ -24,7 +24,7 @@ import lombok.experimental.Accessors;
  * Contains the code to generate Java POJO classes from a given JSON text.
  */
 class Generator {
-    private static final ObjectMapper mapper = new ObjectMapper();
+    private static final JsonParser parser = new JsonParser();
 
     private final File destRoot;
     private final String packageName;
@@ -62,10 +62,10 @@ class Generator {
             deferredList = jCodeModel.ref(List.class).narrow(Deferred.class);
 
             // Parse the JSON data
-            JsonNode rootNode = mapper.readTree(json);
+            JsonElement rootNode = parser.parse(json);
 
             // Recursively generate
-            generate(rootNode, formatClassName(rootName), jPackage);
+            generate(rootNode.getAsJsonObject(), formatClassName(rootName), jPackage);
 
             // Build
             jCodeModel.build(destRoot);
@@ -83,7 +83,7 @@ class Generator {
      * @param jPackage the code model package to generate the class in.
      * @throws Exception if an error occurs.
      */
-    private void generate(JsonNode rootNode, String rootName, JPackage jPackage) throws Exception {
+    private void generate(JsonObject rootNode, String rootName, JPackage jPackage) throws Exception {
         config = ConfigUtil.load();
 
         // First create all referenced sub-types and collect field data
@@ -110,7 +110,7 @@ class Generator {
      * @param jPackage  the code model package to generate the class in.
      * @throws Exception if an error occurs.
      */
-    private void parseObject(JsonNode classNode, String className, JPackage jPackage) throws Exception {
+    private void parseObject(JsonObject classNode, String className, JPackage jPackage) throws Exception {
         // Find the class if it exists, or create it if it doesn't
         JDefinedClass clazz;
         if (definedClasses.containsKey(className)) {
@@ -123,20 +123,18 @@ class Generator {
         }
 
         // Iterate over all of the fields in this object
-        Iterator<Map.Entry<String, JsonNode>> fieldsIterator = classNode.fields();
-        while (fieldsIterator.hasNext()) {
-            // Get the field name and child node
-            Map.Entry<String, JsonNode> entry = fieldsIterator.next();
+        Set<Map.Entry<String, JsonElement>> fieldsIterator = classNode.entrySet();
+        for (Map.Entry<String, JsonElement> entry : fieldsIterator) {
             String childProperty = entry.getKey();
-            JsonNode childNode = entry.getValue();
+            JsonElement childNode = entry.getValue();
 
             // Recurse into objects and arrays
-            if (childNode.isObject()) {
+            if (childNode.isJsonObject()) {
                 String childName = formatClassName(childProperty);
-                parseObject(childNode, childName, jPackage);
-            } else if (childNode.isArray()) {
+                parseObject(childNode.getAsJsonObject(), childName, jPackage);
+            } else if (childNode.isJsonArray()) {
                 String childName = formatClassName(Inflector.getInstance().singularize(childProperty));
-                parseArray(childNode, childName, jPackage);
+                parseArray(childNode.getAsJsonArray(), childName, jPackage);
             }
 
             // Now attempt to create the field and add it to the field set
@@ -155,18 +153,18 @@ class Generator {
      * @param jPackage  the code model package to generate the class in.
      * @throws Exception if an error occurs.
      */
-    private void parseArray(JsonNode arrayNode, String className, JPackage jPackage) throws Exception {
+    private void parseArray(JsonArray arrayNode, String className, JPackage jPackage) throws Exception {
         // Retrieve the first non-null element of the array
-        Iterator<JsonNode> elementsIterator = arrayNode.elements();
+        Iterator<JsonElement> elementsIterator = arrayNode.iterator();
         while (elementsIterator.hasNext()) {
-            JsonNode element = elementsIterator.next();
+            JsonElement element = elementsIterator.next();
 
             // Recurse on the first object or array
-            if (element.isObject()) {
-                parseObject(element, className, jPackage);
+            if (element.isJsonObject()) {
+                parseObject(element.getAsJsonObject(), className, jPackage);
                 break;
-            } else if (element.isArray()) {
-                parseArray(element, className, jPackage);
+            } else if (element.isJsonArray()) {
+                parseArray(element.getAsJsonArray(), className, jPackage);
                 break;
             }
         }
@@ -181,67 +179,84 @@ class Generator {
      * @return a {@link FieldInfo} representing the new field.
      * @throws Exception if an error occurs.
      */
-    private FieldInfo getFieldInfoFromNode(JsonNode node, String propertyName, JCodeModel jCodeModel) throws Exception {
+    private FieldInfo getFieldInfoFromNode(JsonElement node, String propertyName, JCodeModel jCodeModel) throws Exception {
         // Switch on node type
-        if (node.isArray()) {
+        if (node.isJsonArray()) {
             // Singularize the class name of a single element
             String newClassName = formatClassName(Inflector.getInstance().singularize(propertyName));
 
             // Get the array type
-            if (node.elements().hasNext()) {
-                JsonNode firstNode = node.elements().next();
-                if (firstNode.isObject()) {
+            JsonArray array = node.getAsJsonArray();
+            if (array.iterator().hasNext()) {
+                JsonElement firstNode = array.iterator().next();
+                if (firstNode.isJsonObject()) {
                     // Get the already-created class from the class map
                     JDefinedClass newClass = definedClasses.get(newClassName);
 
                     // Now return the field referring to a list of the new class
                     return new FieldInfo(jCodeModel.ref(List.class).narrow(newClass), propertyName);
-                } else if (firstNode.isArray()) {
+                } else if (firstNode.isJsonArray()) {
                     // Recurse to get the field info of this node
                     FieldInfo fi = getFieldInfoFromNode(firstNode, propertyName, jCodeModel);
 
                     // Make a List<> of the recursed type
                     return new FieldInfo(jCodeModel.ref(List.class).narrow(fi.type), propertyName);
-                } else if (firstNode.isFloatingPointNumber()) {
-                    // Now return the field referring to a list of doubles
-                    return new FieldInfo(jCodeModel.ref(List.class).narrow(Double.class), propertyName);
-                } else if (firstNode.isIntegralNumber()) {
-                    // Now return the field referring to a list of longs
-                    return new FieldInfo(jCodeModel.ref(List.class).narrow(Long.class), propertyName);
-                } else if (firstNode.isNull()) {
+                } else if (firstNode.isJsonNull()) {
                     // Null values? Return List<Deferred>.
                     return new FieldInfo(deferredList, propertyName);
-                } else if (firstNode.isTextual()) {
-                    // Now return the field referring to a list of strings
-                    return new FieldInfo(jCodeModel.ref(List.class).narrow(String.class), propertyName);
+                } else if (firstNode.isJsonPrimitive()) {
+                    JsonPrimitive primitiveNode = firstNode.getAsJsonPrimitive();
+                    if (primitiveNode.isNumber()) {
+                        Number n = node.getAsNumber();
+                        if (n.doubleValue() == n.longValue())
+                            return new FieldInfo(jCodeModel.ref(List.class).narrow(Long.class), propertyName);
+                        else
+                            return new FieldInfo(jCodeModel.ref(List.class).narrow(Double.class), propertyName);
+                    } else if (primitiveNode.isJsonNull()) {
+                        // Null values? Return List<Deferred>.
+                        return new FieldInfo(deferredList, propertyName);
+                    } else if (primitiveNode.isString()) {
+                        // Now return the field referring to a list of strings
+                        return new FieldInfo(jCodeModel.ref(List.class).narrow(String.class), propertyName);
+                    }
                 }
             } else {
                 // No elements? Return List<Deferred>.
                 return new FieldInfo(deferredList, propertyName);
             }
-        } else if (node.isBoolean()) {
-            return new FieldInfo(jCodeModel.ref(Boolean.class), propertyName);
-        } else if (node.isFloatingPointNumber()) {
-            return new FieldInfo(jCodeModel.ref(Double.class), propertyName);
-        } else if (node.isIntegralNumber()) {
-            return new FieldInfo(jCodeModel.ref(Long.class), propertyName);
-        } else if (node.isNull()) {
+        } else if (node.isJsonPrimitive()) {
+            return getPrimitiveFieldInfo(jCodeModel, node.getAsJsonPrimitive(), propertyName);
+        } else if (node.isJsonNull()) {
             // Defer the type reference until later
             return new FieldInfo(deferredClass, propertyName);
-        } else if (node.isObject()) {
+        } else if (node.isJsonObject()) {
             // Get the already-created class from the class map
             String newClassName = formatClassName(propertyName);
             JDefinedClass newClass = definedClasses.get(newClassName);
 
             // Now return the field as a defined class
             return new FieldInfo(newClass, propertyName);
-        } else if (node.isTextual()) {
-            return new FieldInfo(jCodeModel.ref(String.class), propertyName);
         }
 
         // If all else fails, return null
         return null;
     }
+
+    private FieldInfo getPrimitiveFieldInfo(JCodeModel jCodeModel, JsonPrimitive node, String propertyName) {
+        if (node.isBoolean()) {
+            return new FieldInfo(jCodeModel.ref(Boolean.class), propertyName);
+        } else if (node.isNumber()) {
+            Number n = node.getAsNumber();
+            if (n.doubleValue() == n.longValue())
+                return new FieldInfo(config.isPrimitive() ? jCodeModel.LONG : jCodeModel.ref(Long.class), propertyName);
+            else
+                return new FieldInfo(config.isPrimitive() ? jCodeModel.DOUBLE : jCodeModel.ref(Double.class), propertyName);
+        } else if (node.isString()) {
+            return new FieldInfo(jCodeModel.ref(String.class), propertyName);
+        }
+        return new FieldInfo(deferredClass, propertyName);
+    }
+
 
     /**
      * Generates all of the fields for a given class.
@@ -296,8 +311,7 @@ class Generator {
                 annotateField(newField, fieldInfo.propertyName);
 
                 // Create getter/setter if lombok is disabled.
-                Config config = ConfigUtil.load();
-                if (!config.useLombok()) {
+                 if (!config.useLombok()) {
                     createGetter(clazz, newField, fieldInfo.propertyName);
                     createSetter(clazz, newField, fieldInfo.propertyName);
                 }
@@ -316,27 +330,27 @@ class Generator {
      * @param clazz the class to annotate.
      */
     private static void annotateClass(final JDefinedClass clazz) throws ClassNotFoundException {
-        if (config.lombokNoArgsConstructor()) {
+        if (config.isLombokNoArgsConstructor()) {
             clazz.annotate(NoArgsConstructor.class);
         }
 
-        if (config.lombokRequiredArgsConstructor()) {
+        if (config.isLombokRequiredArgsConstructor()) {
             clazz.annotate(RequiredArgsConstructor.class);
         }
 
-        if (config.lombokAllArgsConstructor()) {
+        if (config.isLombokAllArgsConstructor()) {
             clazz.annotate(AllArgsConstructor.class);
         }
 
-        if (config.lombokData()) {
+        if (config.isLombokData()) {
             clazz.annotate(Data.class);
         }
 
-        if (config.lombokAccessors()) {
-            clazz.annotate(Accessors.class).param("fluent", config.lombokAccessorsFluent());
+        if (config.isLombokAccessors()) {
+            clazz.annotate(Accessors.class).param("fluent", config.isLombokAccessorsFluent());
         }
 
-        if (config.lombokBuilder()) {
+        if (config.isLombokBuilder()) {
             clazz.annotate(Builder.class);
         }
 
@@ -353,9 +367,9 @@ class Generator {
     private static void annotateField(JFieldVar field, String propertyName) {
         // Use the SerializedName annotation if the field name doesn't match the property name
         if (!field.name().equals(propertyName)) {
-            if (config.namePolicy() == Config.NamePolicy.GSON)
+            if (config.getFieldNameAnnotation() == 1)
                 field.annotate(SerializedName.class).param("value", propertyName);
-            else if (config.namePolicy() == Config.NamePolicy.JACKSON)
+            else if (config.getFieldNameAnnotation() == 2)
                 field.annotate(JsonProperty.class).param("value", propertyName);
         }
     }
@@ -464,7 +478,7 @@ class Generator {
             }
         }
 
-        if(formattedName.length() == 0)
+        if (formattedName.length() == 0)
             throw new IllegalArgumentException("Illegal property name: \"" + propertyName + "\".");
 
         return formattedName.toString();

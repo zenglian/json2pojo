@@ -75,15 +75,9 @@
             <properties/>
             <border type="none"/>
             <children>
-              <component id="55e35" class="org.fife.ui.rsyntaxtextarea.RSyntaxTextArea" binding="jsonTextArea">
+              <component id="6ca1d" class="javax.swing.JTextArea" binding="jsonTextArea">
                 <constraints/>
-                <properties>
-                  <background color="-1"/>
-                  <bracketMatchingEnabled value="false"/>
-                  <highlightCurrentLine value="false"/>
-                  <syntaxEditingStyle value="text/json"/>
-                  <toolTipText value=""/>
-                </properties>
+                <properties/>
               </component>
             </children>
           </scrollpane>

@@ -1,31 +1,28 @@
 package liwey.json2pojo;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import lombok.Data;
-import lombok.experimental.Accessors;
 
 /**
  * @author Leon Zeng
  * @since 2018/12/28 18:04
  */
 @Data
-@Accessors(fluent = true)
 public class Config {
-    private NamePolicy namePolicy = NamePolicy.NONE;
+    @JsonProperty("pri")
+    private boolean primitive = true;
+    private int fieldNameAnnotation = 0;
     private boolean lombokAccessors = false;
     private boolean lombokAccessorsFluent = true;
-    private boolean lombokBuilder = true;
+    private boolean lombokBuilder = false;
     private boolean lombokData = true;
     private boolean lombokNoArgsConstructor = false;
     private boolean lombokRequiredArgsConstructor = false;
     private boolean lombokAllArgsConstructor = false;
-    public boolean useLombok(){
+
+    public boolean useLombok() {
         return lombokBuilder || lombokData || lombokAccessors || lombokNoArgsConstructor
                 || lombokRequiredArgsConstructor || lombokAllArgsConstructor;
-    }
-
-    enum NamePolicy {
-        NONE,
-        GSON,
-        JACKSON
     }
 }
