@@ -310,8 +310,8 @@ class Generator {
                 // Annotate field
                 annotateField(newField, fieldInfo.propertyName);
 
-                // Create getter/setter if lombok is disabled.
-                 if (!config.useLombok()) {
+                // Create getter/setter if lombok.Data is not present.
+                if (!config.isLombokData()) {
                     createGetter(clazz, newField, fieldInfo.propertyName);
                     createSetter(clazz, newField, fieldInfo.propertyName);
                 }
@@ -347,7 +347,16 @@ class Generator {
         }
 
         if (config.isLombokAccessors()) {
-            clazz.annotate(Accessors.class).param("fluent", config.isLombokAccessorsFluent());
+            JAnnotationUse use = clazz.annotate(Accessors.class);
+            if (config.isLombokAccessorsFluent()) {
+                use.param("fluent", true);
+            }
+            if (config.isLombokAccessorsChain()) {
+                use.param("chain", true);
+            }
+            if (!config.getLombokAccessorsPrefix().trim().isEmpty()) {
+                use.param("prefix", config.getLombokAccessorsPrefix());
+            }
         }
 
         if (config.isLombokBuilder()) {

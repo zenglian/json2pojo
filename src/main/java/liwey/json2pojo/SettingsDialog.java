@@ -22,8 +22,10 @@ public class SettingsDialog extends JDialog {
     private JCheckBox allArgsConstructorCheckBox;
     private JCheckBox fluentCheckBox;
 
-    private JComboBox<String> comboBoxFieldName;
+    private JComboBox<String> filedNameComboBox;
     private JCheckBox checkBoxPrimitive;
+    private JCheckBox chainCheckBox;
+    private JTextField prefixTextField;
 
     public SettingsDialog() {
         setContentPane(contentPanel);
@@ -46,29 +48,37 @@ public class SettingsDialog extends JDialog {
         // call onCancel() on ESCAPE
         contentPanel.registerKeyboardAction(e -> onCancel(), KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
                 JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT);
+        accessorsCheckBox.addChangeListener(e -> updateAccessorsState());
 
-        comboBoxFieldName.addItem("None");
-        comboBoxFieldName.addItem("@SerializedName (gson)");
-        comboBoxFieldName.addItem("@JsonProperty (jackson)");
-        fluentCheckBox.setEnabled(accessorsCheckBox.isSelected());
+        filedNameComboBox.addItem("None");
+        filedNameComboBox.addItem("@SerializedName (gson)");
+        filedNameComboBox.addItem("@JsonProperty (jackson)");
 
         bindConfig();
-        accessorsCheckBox.addChangeListener(e -> fluentCheckBox.setEnabled(accessorsCheckBox.isSelected()));
     }
 
     private void bindConfig() {
         try {
             config = ConfigUtil.load();
             setData(config);
+            updateAccessorsState();
+            filedNameComboBox.setSelectedIndex(config.getFieldNameAnnotation());
         } catch (IOException e) {
             JOptionPane.showMessageDialog(this, "Failed to load settings, using default settings: " + e.getMessage(),
                     "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
+    private void updateAccessorsState(){
+        fluentCheckBox.setEnabled(accessorsCheckBox.isSelected());
+        chainCheckBox.setEnabled(accessorsCheckBox.isSelected());
+        prefixTextField.setEnabled(accessorsCheckBox.isSelected());
+    }
+
     private void onOK() {
         try {
             getData(config);
+            config.setFieldNameAnnotation(filedNameComboBox.getSelectedIndex());
             ConfigUtil.save(config);
         } catch (IOException e) {
             JOptionPane.showMessageDialog(this, "Failed to load settings: " + e.getMessage(), "Error",
@@ -86,11 +96,12 @@ public class SettingsDialog extends JDialog {
         requiredArgsConstructorCheckBox.setSelected(data.isLombokRequiredArgsConstructor());
         allArgsConstructorCheckBox.setSelected(data.isLombokAllArgsConstructor());
         dataCheckbox.setSelected(data.isLombokData());
+        builderCheckbox.setSelected(data.isLombokBuilder());
         accessorsCheckBox.setSelected(data.isLombokAccessors());
         fluentCheckBox.setSelected(data.isLombokAccessorsFluent());
-        builderCheckbox.setSelected(data.isLombokBuilder());
+        chainCheckBox.setSelected(data.isLombokAccessorsChain());
+        prefixTextField.setText(data.getLombokAccessorsPrefix());
         checkBoxPrimitive.setSelected(data.isPrimitive());
-        comboBoxFieldName.setSelectedIndex(data.getFieldNameAnnotation());
     }
 
     public void getData(Config data) {
@@ -98,23 +109,11 @@ public class SettingsDialog extends JDialog {
         data.setLombokRequiredArgsConstructor(requiredArgsConstructorCheckBox.isSelected());
         data.setLombokAllArgsConstructor(allArgsConstructorCheckBox.isSelected());
         data.setLombokData(dataCheckbox.isSelected());
+        data.setLombokBuilder(builderCheckbox.isSelected());
         data.setLombokAccessors(accessorsCheckBox.isSelected());
         data.setLombokAccessorsFluent(fluentCheckBox.isSelected());
-        data.setLombokBuilder(builderCheckbox.isSelected());
+        data.setLombokAccessorsChain(chainCheckBox.isSelected());
+        data.setLombokAccessorsPrefix(prefixTextField.getText());
         data.setPrimitive(checkBoxPrimitive.isSelected());
-        data.setFieldNameAnnotation(comboBoxFieldName.getSelectedIndex());
-    }
-
-    public boolean isModified(Config data) {
-        if (noArgsConstructorCheckBox.isSelected() != data.isLombokNoArgsConstructor()) return true;
-        if (requiredArgsConstructorCheckBox.isSelected() != data.isLombokRequiredArgsConstructor()) return true;
-        if (allArgsConstructorCheckBox.isSelected() != data.isLombokAllArgsConstructor()) return true;
-        if (dataCheckbox.isSelected() != data.isLombokData()) return true;
-        if (accessorsCheckBox.isSelected() != data.isLombokAccessors()) return true;
-        if (fluentCheckBox.isSelected() != data.isLombokAccessorsFluent()) return true;
-        if (builderCheckbox.isSelected() != data.isLombokBuilder()) return true;
-        if (checkBoxPrimitive.isSelected() != data.isPrimitive()) return true;
-        if (comboBoxFieldName.getSelectedIndex() != data.getFieldNameAnnotation()) return true;
-        return false;
     }
 }

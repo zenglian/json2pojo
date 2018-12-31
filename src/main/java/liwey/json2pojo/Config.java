@@ -10,19 +10,15 @@ import lombok.Data;
  */
 @Data
 public class Config {
-    @JsonProperty("pri")
     private boolean primitive = true;
     private int fieldNameAnnotation = 0;
     private boolean lombokAccessors = false;
     private boolean lombokAccessorsFluent = true;
+    private boolean lombokAccessorsChain = true;
+    private String lombokAccessorsPrefix = "";
     private boolean lombokBuilder = false;
     private boolean lombokData = true;
     private boolean lombokNoArgsConstructor = false;
     private boolean lombokRequiredArgsConstructor = false;
     private boolean lombokAllArgsConstructor = false;
-
-    public boolean useLombok() {
-        return lombokBuilder || lombokData || lombokAccessors || lombokNoArgsConstructor
-                || lombokRequiredArgsConstructor || lombokAllArgsConstructor;
-    }
 }

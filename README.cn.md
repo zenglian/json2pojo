@@ -1,20 +1,20 @@
-[中文 README](README.cn.md)
+[English README](README.md)
 
-## Introduction
-An IntelliJ Idea plugin which generate POJOs from JSON with Lombok and gson/jackson annotations.
+## 简介
+IntelliJ Idea插件，从JSON文本生成POJO, 并添加Lombok与Gson/Jackson注解.
 
-## Installation
-From IntelliJ Idea plugin marketplace search `Json2Pojo with Lombok`.
+## 安装
+从plugin库marketplace搜索`Json2Pojo with Lombok`。
 
-## Usage
-1. From context of a package，select "New-> Generate POJOs from JSON".
+## 使用
+1. 右键目标package，选择"New-> Generate POJOs from JSON"  
 ![Context menu](image/menu.jpg "菜单")
 
-2. Input root class name and source JSON.
+2. 输入类名和源JSON文本。  
 ![Input UI](image/input.jpg "输入")
 
-## Example
-Json
+## 实例
+输入Json:
 
 	{
 	  "javaHome": "c:\\java18",
@@ -22,7 +22,7 @@ Json
 	  "scala.Version": "2.12.8"
 	}
 
-POJO class
+生成类：
 
     package test;
 
@@ -41,10 +41,10 @@ POJO class
         private String scalaVersion;
     }
 
-## Settings
-![Settings UI](image/config.jpg)
+## 配置
+![Settings UI](image/config.jpg "配置界面")
 
-Settings file ~/.json2pojo
+配置文件~/.json2pojo
 
     {
       "primitive": true,
