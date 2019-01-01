@@ -1,7 +1,5 @@
 package liwey.json2pojo;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-
 import lombok.Data;
 
 /**
@@ -10,15 +8,27 @@ import lombok.Data;
  */
 @Data
 public class Config {
-    private boolean primitive = true;
-    private int fieldNameAnnotation = 0;
-    private boolean lombokAccessors = false;
-    private boolean lombokAccessorsFluent = true;
-    private boolean lombokAccessorsChain = true;
-    private String lombokAccessorsPrefix = "";
-    private boolean lombokBuilder = false;
-    private boolean lombokData = true;
-    private boolean lombokNoArgsConstructor = false;
-    private boolean lombokRequiredArgsConstructor = false;
-    private boolean lombokAllArgsConstructor = false;
+  private boolean fieldTypePrimitive = false;
+  private int fieldNameAnnotation = 0;
+
+  private boolean lombokAccessorsFluent = false;
+  private boolean lombokAccessorsChain = false;
+  private String lombokAccessorsPrefix = "";
+  private boolean lombokBuilder = false;
+  private boolean lombokData = true;
+  private boolean lombokNoArgsConstructor = false;
+  private boolean lombokRequiredArgsConstructor = true;
+  private boolean lombokAllArgsConstructor = false;
+  private String suppressWarnings = "unused";
+
+  private String language = "";
+  private int windowWidth = 500;
+  private int windowHeight = 450;
+  private int windowX = 100;
+  private int windowY = 100;
+
+  public boolean useAccessors() {
+    return isLombokAccessorsFluent() || isLombokAccessorsChain()
+          || !lombokAccessorsPrefix.trim().isEmpty();
+  }
 }

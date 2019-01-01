@@ -1,1 +1,0 @@
-package liwey.json2pojo;

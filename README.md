@@ -4,42 +4,16 @@
 An IntelliJ Idea plugin which generate POJOs from JSON with Lombok and gson/jackson annotations.
 
 ## Installation
-From IntelliJ Idea plugin marketplace search `Json2Pojo with Lombok`.
+From IntelliJ Idea plugin marketplace search `json2pojo with Lombok`.
 
 ## Usage
 1. From context of a package，select "New-> Generate POJOs from JSON".
+
 ![Context menu](image/menu.jpg "菜单")
 
 2. Input root class name and source JSON.
+
 ![Input UI](image/input.jpg "输入")
-
-## Example
-Json
-
-	{
-	  "javaHome": "c:\\java18",
-	  "java.version": "12",
-	  "scala.Version": "2.12.8"
-	}
-
-POJO class
-
-    package test;
-
-    import com.google.gson.annotations.SerializedName;
-    import lombok.Data;
-    import lombok.experimental.Accessors;
-
-    @Data
-    @Accessors(fluent = true)
-    @SuppressWarnings("unused")
-    public class Version {
-        private String javaHome;
-        @SerializedName("java.version")
-        private String javaVersion;
-        @SerializedName("scala.version")
-        private String scalaVersion;
-    }
 
 ## Settings
 ![Settings UI](image/config.jpg)
@@ -58,5 +32,37 @@ Settings file ~/.json2pojo
       "lombok.no.args.constructor": false,
       "lombok.required.args.constructor": true,
       "lombok.all.args.constructor": false
+    }
+
+## Example
+
+Run `GeneratorTest`, generated root class:
+
+    package example.spark;
+
+    import java.util.List;
+    import com.google.gson.annotations.SerializedName;
+    import lombok.Data;
+    import lombok.RequiredArgsConstructor;
+
+    @RequiredArgsConstructor
+    @Data
+    @SuppressWarnings("unused")
+    public class SparkProgress {
+        @SerializedName("batch.id")
+        private long batchId;
+        private DurationMs durationMs;
+        private String id;
+        @SerializedName("input-rows-per-second")
+        private double inputRowsPerSecond;
+        private String name;
+        @SerializedName("num_input_rows")
+        private long numInputRows;
+        private double processedRowsPerSecond;
+        private String runId;
+        private Sink sink;
+        private List<Source> sources;
+        private List<StateOperator> stateOperators;
+        private String timestamp;
     }
 

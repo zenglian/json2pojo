@@ -12,7 +12,7 @@ repositories {
 }
 
 dependencies {
-    compile "com.google.code.gson:gson:2.8.5"
+    compile files("libs/lombok.jar")
     compile "com.sun.codemodel:codemodel:2.6"
     compileOnly "org.projectlombok:lombok:1.18.4"
 }

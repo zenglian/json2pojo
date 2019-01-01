@@ -1,41 +1,29 @@
 <idea-plugin>
     <id>liwey.Json2PojoWithLombok</id>
-    <name>Json2Pojo with Lombok</name>
+    <name>json2pojo with Lombok</name>
     <version>1.1</version>
-    <vendor email="leon.zeng@qq.com" url="https://github.com/zenglian/Json2Pojo.git">Leon</vendor>
-
+    <vendor email="leon.zeng@qq.com" url="https://github.com/zenglian/json2pojo.git">Leon</vendor>
     <description><![CDATA[
-      Generate POJOs from JSON, with <a href="https://github.com/rzwitserloot/lombok">lombok</a> and gson/jackson annotations.<br/>
-      从JSON生成Java实体类(POJO)，并添加<a href="https://github.com/rzwitserloot/lombok">lombok</a>与gson/jackson标注。<br/>
-      <a href="https://github.com/zenglian/Json2Pojo.git">Source@GitHub (源代码)</a>.
-      <img src="image/menu.jpg" alt="Menu"/><br/>
-      <img src="image/input.jpg" alt="Input"/><br/>
-      <img src="image/config.jpg" alt="Settings"/><br/>
+        <div id="tab-content1">
+            Convert JSON to POJOs, with <a href="https://github.com/rzwitserloot/lombok">lombok</a> and gson/jackson annotations.<br>
+            <a href="https://github.com/zenglian/json2pojo.git">source code</a>.<br/>
+            <img src="http://pic.yupoo.com/leon1_v/a6ee0ed4/medium.jpg" alt="input.jpg"><br/>
+            <img src="http://pic.yupoo.com/leon1_v/e50d6473/medium.jpg" alt="config.jpg"><br/>
+        </div>
     ]]></description>
 
     <change-notes><![CDATA[
-      <li>1.1 - Support prefix in @Accessors.</li>
-      <li>1.0 - Support lombok annotations. Add settings UI.</li>
+      <li>1.1 - Support @Accessors and @SuppressWarnings. Support i18n. </li>
+      <li>1.0 - Support lombok annotations.</li>
     ]]>
     </change-notes>
 
-    <!-- please see http://www.jetbrains.org/intellij/sdk/docs/basics/getting_started/plugin_compatibility.html
-         on how to target different products -->
-    <!-- uncomment to enable plugin in all products
-    <depends>com.intellij.modules.lang</depends>
-    -->
-
-    <extensions defaultExtensionNs="com.intellij">
-        <!-- Add your extensions here -->
-    </extensions>
-
     <actions>
-        <!-- Add your actions here -->
-        <action id="Json2Pojo.generate" class="liwey.json2pojo.GenerateAction" icon="/icons/json.png"
-                text="Generate POJOs from JSON"
-                description="Generate a set of POJOs to a folder from source JSON text.">
+        <action id="json2pojo.generate" class="liwey.json2pojo.GenerateAction" icon="/icons/json.png"
+                text="Convert JSON to POJOs"
+                description="Convert JSON to a set of POJOs in a package.">
             <add-to-group group-id="NewGroup" anchor="first"/>
+            <keyboard-shortcut first-keystroke="control alt G" keymap="$default"/>
         </action>
     </actions>
-
 </idea-plugin>

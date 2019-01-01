@@ -1,0 +1,42 @@
+{
+    "id" : "18092f4d-c54a-42c6-98e0-438aeef9f1fa",
+    "runId" : "16a3734b-0418-4231-ae5f-c06ee8638f97",
+    "name" : "Opportunity_UHIgcccj_MilestoneHistory",
+    "timestamp" : "2018-11-10T11:18:20.005Z",
+    "batch.id" : 55,
+    "num_input_rows" : 191,
+    "input-rows-per-second" : 11.019442681590032,
+    "processedRowsPerSecond" : 0.5130698500278025,
+    "durationMs" : {
+        "addBatch" : 371801,
+        "getBatch" : 10,
+        "getOffset" : 294,
+        "queryPlanning" : 73,
+        "triggerExecution" : 372269,
+        "walCommit" : 86
+    },
+    "stateOperators" : [ {
+        "numRowsTotal": 0,
+        "numRowsUpdated": 0,
+        "memoryUsedBytes": 0
+    }],
+    "sources" : [ {
+        "description" : "KafkaSource[Assign[insight-tenant1-0]]",
+        "startOffset" : {
+            "insight-tenant1" : {
+                "p0" : 234571
+            }
+        },
+        "endOffset" : {
+            "insight-tenant1" : {
+                "p0" : 234762
+            }
+        },
+        "numInputRows" : 191,
+        "inputRowsPerSecond" : 11.019442681590032,
+        "processedRowsPerSecond" : 0.5130698500278025
+    } ],
+    "sink" : {
+        "description" : "ForeachSink"
+    }
+}

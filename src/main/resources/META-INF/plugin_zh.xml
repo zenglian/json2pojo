@@ -1,0 +1,27 @@
+<idea-plugin>
+    <id>liwey.Json2PojoWithLombok</id>
+    <name>json2pojo with lombok</name>
+    <version>1.1</version>
+    <vendor email="leon.zeng@qq.com" url="https://github.com/zenglian/json2pojo.git">Leon</vendor>
+    <description><![CDATA[
+        <div id="zh">
+            从JSON生成Java实体类(POJO)，并添加<a href="https://github.com/rzwitserloot/lombok">lombok</a>与gson/jackson标注。<br/>
+            <a href="https://github.com/zenglian/json2pojo.git">源代码</a>.<br/>
+        </div>
+    ]]></description>
+
+    <change-notes><![CDATA[
+      <li>1.1 - 添加标注：@Accessors、@SuppressWarnings。</li>
+      <li>1.0 - 支持lombok标注。</li>
+    ]]>
+    </change-notes>
+
+    <actions>
+        <action id="json2pojo.generate" class="liwey.json2pojo.GenerateAction" icon="/icons/json.png"
+                text="根据JSON生成POJO"
+                description="根据JSON生成POJO。">
+            <add-to-group group-id="NewGroup" anchor="first"/>
+            <keyboard-shortcut first-keystroke="control alt G" keymap="$default"/>
+        </action>
+    </actions>
+</idea-plugin>
