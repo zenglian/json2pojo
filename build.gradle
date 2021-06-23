@@ -23,5 +23,4 @@ intellij {
 
 patchPluginXml {
     sinceBuild '162.00'
-    untilBuild '201.00'
 }
